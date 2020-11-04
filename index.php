@@ -2,7 +2,6 @@
 require_once 'vendor/autoload.php';
 
 
-use Sabre\Xml\Service;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\DriverManager;
 use Doctrine\DBAL\Query\QueryBuilder;
@@ -35,30 +34,41 @@ function query(): QueryBuilder
     return database()->createQueryBuilder();
 }
 
+$dispatcher = FastRoute\simpleDispatcher(function (FastRoute\RouteCollector $r) {
+    $namespace = 'App\Controllers\\';
+    //display main pages
+    $r->addRoute('GET', '/', $namespace . 'MainPageController@index');
+    $r->addRoute('GET', '/update', $namespace . 'MainPageController@store');
+});
+
+// Fetch method and URI from somewhere
+$httpMethod = $_POST['_method'] ?? $_SERVER['REQUEST_METHOD'];
+$uri = $_SERVER['REQUEST_URI'];
 
 
-$xml=file_get_contents("https://www.bank.lv/vk/ecb_rss.xml");
-
-$service = new Service();
-$result = $service->parse($xml);
-
-
-
-$rate = $result[0]['value'][9]['value'][3]['value'];
-
-
-
-$array = explode(" ", $rate);
-$rates = [];
-
-for($i=0;$i<count($array);$i++){
-    if($i % 2 == 0){
-        $rates[$array[$i]] = $array[$i+1];
-    }
+// Strip query string (?foo=bar) and decode URI
+if (false !== $pos = strpos($uri, '?')) {
+    $uri = substr($uri, 0, $pos);
 }
+$uri = rawurldecode($uri);
 
+$routeInfo = $dispatcher->dispatch($httpMethod, $uri);
+switch ($routeInfo[0]) {
+    case FastRoute\Dispatcher::NOT_FOUND:
+        echo '404 PAGE NOT FOUND';
+        break;
+    case FastRoute\Dispatcher::METHOD_NOT_ALLOWED:
+        $allowedMethods = $routeInfo[1];
+        echo 'METHOD NOT ALLOWED';
+        break;
+    case FastRoute\Dispatcher::FOUND:
+        [$controller, $method] = explode('@', $routeInfo[1]);
+        $vars = $routeInfo[2];
 
+        (new $controller)->$method($vars);
 
+        break;
+}
 
 
 
